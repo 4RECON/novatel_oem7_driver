@@ -29,6 +29,9 @@
 
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 
+#include <tf/tf.h>
+#include <tf/transform_broadcaster.h>
+
 
 #include <novatel_oem7_driver/oem7_ros_messages.hpp>
 
@@ -83,6 +86,9 @@ namespace novatel_oem7_driver
     boost::shared_ptr<novatel_oem7_msgs::INSPVA>   inspva_;
     boost::shared_ptr<novatel_oem7_msgs::CORRIMU>  corrimu_;
     boost::shared_ptr<novatel_oem7_msgs::INSSTDEV> insstdev_;
+
+    tf::TransformBroadcaster tf_broadcaster;
+    tf::StampedTransform tf_msg;
 
     int imu_rate_;
     std::string frame_id_;
@@ -180,6 +186,12 @@ namespace novatel_oem7_driver
       imu->linear_acceleration_covariance[0] = DATA_NOT_AVAILABLE;
 
       imu_pub_.publish(imu);
+
+      tf_msg.stamp_ = imu->header.stamp;
+      tf_msg.setOrigin(tf::Vector3(0.0, 0.0, 0.0));
+      tf_msg.setRotation(tf::Quaternion(imu->orientation.x, imu->orientation.y, imu->orientation.z,
+              imu->orientation.w));
+      tf_broadcaster.sendTransform(tf_msg);
     }
 
     void publishImuMsg_OEM7(boost::shared_ptr<sensor_msgs::Imu>& imu)
@@ -268,6 +280,8 @@ namespace novatel_oem7_driver
       imu_rate_(0),
       oem7_imu_reference_frame_(false)
     {
+      tf_msg.frame_id_ = "imu_base";
+      tf_msg.child_frame_id_ = "imu";
     }
 
     ~INSHandler()

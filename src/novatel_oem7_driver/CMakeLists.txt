@@ -12,6 +12,7 @@ set(BUILD_DEPS
   sensor_msgs
   nmea_msgs
   nav_msgs
+  tf
   tf2_geometry_msgs
   message_generation
   novatel_oem7_msgs
