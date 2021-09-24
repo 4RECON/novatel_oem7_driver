@@ -72,6 +72,7 @@ namespace novatel_oem7_driver
     std::condition_variable rsp_ready_cond_; ///< Response ready, signaled from response handler to Oem7 Cmd Handler.
     std::mutex              rsp_ready_mtx_; ///< Response condition guard
     std::string rsp_; ///< The latest response from Oem7 receiver.
+    std::string rsp_multiline_;
     ros::CallbackQueue queue_; //< Dedicated queue for command requests.
     boost::shared_ptr<ros::AsyncSpinner> aspinner_; ///< 1 thread servicing the command queue.
     ros::ServiceServer oem7_cmd_srv_; ///< Oem7 command service.
@@ -194,6 +195,101 @@ namespace novatel_oem7_driver
       oem7_cmd_srv_ = getPrivateNodeHandle().advertiseService(ops);
     }
 
+    bool receiveMsgLine(const std::string &cmd)
+    {
+      {
+        std::lock_guard<std::mutex> lk(rsp_ready_mtx_);
+        rsp_.clear();
+        rsp_multiline_.clear();
+      }
+
+      recvr_->write(boost::asio::buffer(cmd));
+      static const std::string NEWLINE("\n");
+      recvr_->write(boost::asio::buffer(NEWLINE));
+
+      std::unique_lock<std::mutex> lk(rsp_ready_mtx_);
+      if(rsp_ready_cond_.wait_until(lk,
+                                    std::chrono::steady_clock::now() + std::chrono::seconds(3)
+                                    ) == std::cv_status::no_timeout)
+      {
+        return true;
+      }
+      else
+      {
+        return false;
+      }
+    }
+
+    std::string getToken(const std::string &str, const std::string &delim, const int idx) {
+      int start = 0;
+      int end = str.find(delim);
+      int idx_found = 0;
+      while (end != std::string::npos && idx_found <= idx)
+      {
+        if(idx_found == idx) {
+          return str.substr(start, end - start);
+        }
+        start = end + delim.length();
+        end = str.find(delim, start);
+        idx_found++;
+      }
+
+      return "";
+    }
+
+    bool receiveMsgMultiline(const std::string &cmd)
+    {
+      {
+        std::lock_guard<std::mutex> lk(rsp_ready_mtx_);
+        rsp_.clear();
+        rsp_multiline_.clear();
+      }
+
+      recvr_->write(boost::asio::buffer(cmd));
+      static const std::string NEWLINE("\n");
+      recvr_->write(boost::asio::buffer(NEWLINE));
+
+      int countdown = INT_MAX;
+      bool first_line = true;
+      bool once_again = false;
+      while(countdown != 0 || once_again)
+      {
+        {
+          std::unique_lock<std::mutex> lk(rsp_ready_mtx_);
+          if (rsp_ready_cond_.wait_until(lk,
+                                         std::chrono::steady_clock::now() + std::chrono::seconds(3)) != std::cv_status::no_timeout)
+          {
+            return false;
+          }
+        }
+
+        if(once_again)
+        {
+          break;
+        }
+
+        {
+          std::lock_guard<std::mutex> lk(rsp_ready_mtx_);
+
+          if (first_line) {
+            first_line = false;
+          } else {
+            const std::string type = getToken(rsp_, " ", 0);
+            const std::string idx = getToken(rsp_, " ", 2);
+            if (type == "FILELIST")
+            {
+              countdown = atoi(idx.c_str());
+              if(countdown == 0)
+              {
+                once_again = true;
+              }
+            }
+          }
+        }
+      }
+
+      return true;
+    }
 
     /**
      * Called to request O7AbasciiCmd service
@@ -201,25 +297,19 @@ namespace novatel_oem7_driver
     bool serviceOem7AbasciiCb(novatel_oem7_msgs::Oem7AbasciiCmd::Request& req, novatel_oem7_msgs::Oem7AbasciiCmd::Response& rsp)
     {
       NODELET_DEBUG_STREAM("AACmd: cmd '" << req.cmd << "'");
+      bool multilineRsp = (req.cmd == "log filelist");
 
       // Retry sending the commands. For configuration commands, there is no harm in duplicates.
       for(int attempt = 0;
               attempt < 10;
               attempt++)
       {
+        if(multilineRsp && receiveMsgMultiline(req.cmd))
         {
-          std::lock_guard<std::mutex> lk(rsp_ready_mtx_);
-    	  rsp_.clear();
-    	}
-
-        recvr_->write(boost::asio::buffer(req.cmd));
-        static const std::string NEWLINE("\n");
-        recvr_->write(boost::asio::buffer(NEWLINE));
-
-        std::unique_lock<std::mutex> lk(rsp_ready_mtx_);
-        if(rsp_ready_cond_.wait_until(lk,
-                                      std::chrono::steady_clock::now() + std::chrono::seconds(3)
-                                      ) == std::cv_status::no_timeout)
+          rsp.rsp = rsp_multiline_;
+          break;
+        }
+        else if(!multilineRsp && receiveMsgLine(req.cmd))
         {
           rsp.rsp = rsp_;
           break;
@@ -228,7 +318,7 @@ namespace novatel_oem7_driver
         NODELET_ERROR_STREAM("Attempt " << attempt << ": timed out waiting for response.");
       }
 
-      if(rsp.rsp == "OK")
+      if(rsp.rsp.substr(0, 2) == "OK")
       {
         NODELET_INFO_STREAM("AACmd '" << req.cmd << "' : " << "'" << rsp.rsp << "'");
       }
@@ -341,6 +431,7 @@ namespace novatel_oem7_driver
             {
               std::lock_guard<std::mutex> lk(rsp_ready_mtx_);
               rsp_ = rsp;
+              rsp_multiline_ += rsp + "\n";
             }
             rsp_ready_cond_.notify_one();
           }
