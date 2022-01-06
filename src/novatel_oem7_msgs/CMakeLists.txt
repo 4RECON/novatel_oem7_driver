@@ -26,6 +26,7 @@ add_message_files(DIRECTORY msg FILES
   INSPVAX.msg
   INSSTDEV.msg
   CORRIMU.msg
+  RAWIMU.msg
   IMURATECORRIMU.msg
   RXSTATUS.msg
   TIME.msg

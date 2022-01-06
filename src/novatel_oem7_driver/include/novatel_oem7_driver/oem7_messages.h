@@ -172,6 +172,21 @@ namespace novatel_oem7_driver
   static_assert(sizeof(CORRIMUSMem) == 60, ASSERT_MSG);
 
   struct __attribute__((packed))
+  RAWIMUSMem
+  {
+    uint32_t        gnss_week;
+    double          seconds_in_week;
+    uint32_t        imu_status;
+    int32_t         z_acc;
+    int32_t         y_acc_neg;
+    int32_t         x_acc;
+    int32_t         z_gyro;
+    int32_t         y_gyro_neg;
+    int32_t         x_gyro;
+  };
+  static_assert(sizeof(RAWIMUSMem) == 40, ASSERT_MSG);
+
+  struct __attribute__((packed))
   IMURATECORRIMUSMem
   {
     uint32_t        week;

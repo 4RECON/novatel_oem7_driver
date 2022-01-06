@@ -42,6 +42,7 @@
 #include "novatel_oem7_msgs/INSCONFIG.h"
 #include "novatel_oem7_msgs/INSSTDEV.h"
 #include "novatel_oem7_msgs/CORRIMU.h"
+#include "novatel_oem7_msgs/RAWIMU.h"
 #include "novatel_oem7_msgs/RXSTATUS.h"
 #include "novatel_oem7_msgs/TIME.h"
 
@@ -445,6 +446,31 @@ MakeROSMessage<novatel_oem7_msgs::CORRIMU>(
 
   static const std::string name = "CORRIMU";
   SetOem7ShortHeader(msg, name, corrimu->nov_header);
+}
+
+template<>
+void
+MakeROSMessage<novatel_oem7_msgs::RAWIMU>(
+        const Oem7RawMessageIf::ConstPtr& msg,
+        boost::shared_ptr<novatel_oem7_msgs::RAWIMU>& rawimu)
+{
+  rawimu.reset(new novatel_oem7_msgs::RAWIMU);
+
+  assert(msg->getMessageId() == RAWIMUS_OEM7_MSGID);
+
+  const RAWIMUSMem* raw = reinterpret_cast<const RAWIMUSMem*>(msg->getMessageData(OEM7_BINARY_MSG_SHORT_HDR_LEN));
+  rawimu->gnss_week        = raw->gnss_week;
+  rawimu->seconds_in_week  = raw->seconds_in_week;
+  rawimu->imu_status       = raw->imu_status;
+  rawimu->z_acc            = raw->z_acc;
+  rawimu->y_acc_neg        = raw->y_acc_neg;
+  rawimu->x_acc            = raw->x_acc;
+  rawimu->z_gyro           = raw->z_gyro;
+  rawimu->y_gyro_neg       = raw->y_gyro_neg;
+  rawimu->x_gyro           = raw->x_gyro;
+
+  static const std::string name = "RAWIMU";
+  SetOem7ShortHeader(msg, name, rawimu->nov_header);
 }
 
 template<>

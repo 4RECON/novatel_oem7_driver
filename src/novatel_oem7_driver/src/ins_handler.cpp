@@ -37,6 +37,7 @@
 
 #include "sensor_msgs/Imu.h"
 #include "novatel_oem7_msgs/CORRIMU.h"
+#include "novatel_oem7_msgs/RAWIMU.h"
 #include "novatel_oem7_msgs/IMURATECORRIMU.h"
 #include "novatel_oem7_msgs/INSSTDEV.h"
 #include "novatel_oem7_msgs/INSCONFIG.h"
@@ -79,12 +80,14 @@ namespace novatel_oem7_driver
 
     Oem7RosPublisher       imu_pub_;
     Oem7RosPublisher       corrimu_pub_;
+    Oem7RosPublisher       rawimu_pub_;
     Oem7RosPublisher       insstdev_pub_;
     Oem7RosPublisher       inspvax_pub_;
     Oem7RosPublisher       insconfig_pub_;
 
     boost::shared_ptr<novatel_oem7_msgs::INSPVA>   inspva_;
     boost::shared_ptr<novatel_oem7_msgs::CORRIMU>  corrimu_;
+    boost::shared_ptr<novatel_oem7_msgs::RAWIMU>   rawimu_;
     boost::shared_ptr<novatel_oem7_msgs::INSSTDEV> insstdev_;
 
     tf::TransformBroadcaster tf_broadcaster;
@@ -156,6 +159,11 @@ namespace novatel_oem7_driver
       corrimu_pub_.publish(corrimu_);
     }
 
+    void publishRawImuMsg(Oem7RawMessageIf::ConstPtr msg)
+    {
+      MakeROSMessage(msg, rawimu_);
+      rawimu_pub_.publish(rawimu_);
+    }
 
     void publishImuMsg()
     {
@@ -294,6 +302,7 @@ namespace novatel_oem7_driver
 
       imu_pub_.setup<sensor_msgs::Imu>(                  "IMU",        nh);
       corrimu_pub_.setup<  novatel_oem7_msgs::CORRIMU>(  "CORRIMU",    nh);
+      rawimu_pub_.setup<  novatel_oem7_msgs::RAWIMU>(    "RAWIMU",     nh);
       insstdev_pub_.setup< novatel_oem7_msgs::INSSTDEV>( "INSSTDEV",   nh);
       inspvax_pub_.setup<  novatel_oem7_msgs::INSPVAX>(  "INSPVAX",    nh);
       insconfig_pub_.setup<novatel_oem7_msgs::INSCONFIG>("INSCONFIG",  nh);
@@ -318,6 +327,7 @@ namespace novatel_oem7_driver
       static const std::vector<int> MSG_IDS(
                                       {
                                         CORRIMUS_OEM7_MSGID,
+                                        RAWIMUS_OEM7_MSGID,
                                         IMURATECORRIMUS_OEM7_MSGID,
                                         INSPVAS_OEM7_MSGID,
                                         INSPVAX_OEM7_MSGID,
@@ -346,6 +356,10 @@ namespace novatel_oem7_driver
         publishCorrImuMsg(msg);
 
         publishImuMsg();
+      }
+      else if(msg->getMessageId() == RAWIMUS_OEM7_MSGID)
+      {
+        publishRawImuMsg(msg);
       }
       else if(msg->getMessageId() == INSCONFIG_OEM7_MSGID)
       {
